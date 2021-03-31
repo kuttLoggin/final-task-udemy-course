@@ -1,4 +1,4 @@
-import logging
+from loguru import logger as logging
 from aiogram.utils.exceptions import (Unauthorized, InvalidQueryID, TelegramAPIError,
                                       CantDemoteChatCreator, MessageNotModified, MessageToDeleteNotFound,
                                       MessageTextIsEmpty, RetryAfter,

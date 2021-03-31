@@ -1,2 +1,6 @@
 aiogram~=2.12
-environs~=8.0.0
+environs~=9.3
+sqlalchemy~=1.4.3
+loguru~=0.5.3
+asyncpg~=0.22.0
+glQiwiApi~=0.1.6

@@ -21,19 +21,6 @@ async def on_startup(dispatcher):
         # Создаем таблицы если их нету
         await conn.run_sync(Base.metadata.create_all)
 
-        async with async_session() as session:
-            results = await session.execute(select(Users).order_by(Users.id == 0))
-            result = results.scalars().first()
-        if result is None:
-            user_invited = Users(id=0,
-                                 name='Bot',
-                                 balance=0.00,
-                                 code=0,
-                                 invited=None)
-
-        async with session.begin():
-            session.add(user_invited)
-
     logger.info('Уведомляем Администрацию')
     await on_startup_notify(dispatcher)
     logger.info('Бот запущен')

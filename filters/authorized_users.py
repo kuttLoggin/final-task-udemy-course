@@ -6,6 +6,8 @@ from utils.db_api.models import Users
 from aiogram import types
 from aiogram.dispatcher.filters import BoundFilter
 
+from loguru import logger
+
 
 class AuthUserQ(BoundFilter):
     """Проверка на есть ли человек в бд или нет"""

@@ -15,8 +15,7 @@ from utils.db_api.models import Items, Users
 from utils.misc.qiwi import create_bill, check_bill
 from states.buy import BuyItem
 
-
-@dp.message_handler(AuthUserM(), CommandStart(deep_link=re.compile('^item_id-\d+$')))
+@dp.message_handler(CommandStart(deep_link=re.compile('^item_id-\d+$')), AuthUserM())
 async def show_item(message: types.Message):
     item_id = int(message.get_args().split('-')[1])
     async with async_session() as session:
@@ -88,7 +87,8 @@ async def address_delivery(message: types.Message, state: FSMContext):
     else:
         await state.update_data(address=message.text)
     item_id = int((await state.get_data())['id'])
-    await message.answer('Хорошо, осталось только оплатить товар', reply_markup=buy_button(item_id))
+    await message.answer('Хорошо, записал.', reply_markup=types.ReplyKeyboardRemove())
+    await message.answer('Осталось оплатить товар', reply_markup=buy_button(item_id))
     await BuyItem.wait_payment.set()
 
 
@@ -119,6 +119,7 @@ async def create_invoice(call: types.CallbackQuery, state: FSMContext, callback_
 
         if item is None:
             await call.message.answer('Такого товара нету.', reply_markup=None)
+            await state.finish()
             return
 
         if user.balance >= float(item.price)*float(data['quantity']):
@@ -128,6 +129,7 @@ async def create_invoice(call: types.CallbackQuery, state: FSMContext, callback_
             await session.commit()
 
             await call.message.edit_reply_markup()
+            await state.finish()
             await call.message.answer(f'Вы оплатили товар своим балансом, теперь ваш баланс: {user.balance}', reply_markup=types.ReplyKeyboardRemove())
             await send_msg_admins(item, data, call)
             return
@@ -139,6 +141,7 @@ async def create_invoice(call: types.CallbackQuery, state: FSMContext, callback_
     await call.message.edit_text(f'Купить товар можно через <b>Qiwi</b>\n'
                                  f'Оплатить тут: <a href="{bill.pay_url}">*Клик*</a>\n'
                                  f'<b>У вас есть 15 минут что-бы оплатить товар</b>')
+    await state.finish()
 
     for i in range(180):
         result = await check_bill(bill=bill)

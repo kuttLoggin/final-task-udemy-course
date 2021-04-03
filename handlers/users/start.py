@@ -66,7 +66,6 @@ async def connect_user(message: types.Message):
 
 @dp.message_handler(CommandStart(), state='*')
 async def bot_start(message: types.Message, state: FSMContext):
-    print(type(message.from_user.id))
     async with async_session() as session:
         result = await session.execute(select(Users).where(Users.id == message.from_user.id))
         result = result.scalars().first()

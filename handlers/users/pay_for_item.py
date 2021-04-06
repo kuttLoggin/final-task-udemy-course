@@ -99,8 +99,8 @@ async def send_msg_admins(item, data, call):
                                                       f'<b>От</b> {call.from_user.get_mention()}\n'
                                                       f'<b>Адрес:</b> \n{data["address"]}\n'
                                                       f'<b>Товар №{item.id}</b>: {item.name}\n'
-                                                      f'<b>Цена:</b> {float(item.price) * float(data["quantity"])}₽\n'
-                                                      f'<b>Количество:</b> {float(data["quantity"])}\n'
+                                                      f'<b>Цена:</b> {item.price * data["quantity"]}₽\n'
+                                                      f'<b>Количество:</b> {data["quantity"]}\n'
                                                       f'<b>Описание:</b> \n{item.description}\n\n'
                                                       f'<i>Дата выставления товара: {item.create_date}</i>')
 
@@ -122,8 +122,8 @@ async def create_invoice(call: types.CallbackQuery, state: FSMContext, callback_
             await state.finish()
             return
 
-        if user.balance >= float(item.price)*float(data['quantity']):
-            stmt = update(Users).where(Users.id == call.from_user.id).values(balance=float(user.balance) - item.price*float(data["quantity"])). \
+        if user.balance >= item.price * data['quantity']:
+            stmt = update(Users).where(Users.id == call.from_user.id).values(balance=user.balance - item.price*data["quantity"]). \
                 returning(Users.balance)
             await session.execute(stmt)
             await session.commit()
@@ -136,7 +136,7 @@ async def create_invoice(call: types.CallbackQuery, state: FSMContext, callback_
 
     await call.message.edit_text('Генерирую ссылку для оплаты...', reply_markup=None)
 
-    bill = await create_bill(amount=int(float(item.price)*float(data['quantity'])-user.balance))
+    bill = await create_bill(amount=item.price*data['quantity']-user.balance)
 
     await call.message.edit_text(f'Купить товар можно через <b>Qiwi</b>\n'
                                  f'Оплатить тут: <a href="{bill.pay_url}">*Клик*</a>\n'

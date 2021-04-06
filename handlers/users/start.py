@@ -11,7 +11,6 @@ from states import Start
 from utils.db_api.db import async_session
 from utils.db_api.models import Users
 
-from loguru import logger
 
 async def check_code(message, code):
     async with async_session() as session:
@@ -29,12 +28,12 @@ async def check_code(message, code):
                 if result_invited is None:
                     break
 
-            stmt = update(Users).where(Users.code == code).values(balance=float(result.balance) + 10.00). \
+            stmt = update(Users).where(Users.code == code).values(balance=result.balance + 10). \
                 returning(Users.code)
 
             user_invited = Users(id=message.from_user.id,
                                  name=message.from_user.full_name,
-                                 balance=0.00,
+                                 balance=0,
                                  code=your_code,
                                  invited=result.id)
 
@@ -65,7 +64,7 @@ async def connect_user(message: types.Message):
         your_code = randint(1, 257892246898)
         admin = Users(id=message.from_user.id,
                       name=message.from_user.full_name,
-                      balance=0.00,
+                      balance=0,
                       code=your_code,
                       invited=None)
         async with async_session() as session:
@@ -81,7 +80,7 @@ async def connect_user(message: types.Message):
 
 
 @dp.message_handler(CommandStart())
-async def bot_start(message: types.Message, state: FSMContext):
+async def bot_start(message: types.Message):
     async with async_session() as session:
         result = await session.execute(select(Users).where(Users.id == message.from_user.id))
         result = result.scalars().first()
@@ -91,7 +90,7 @@ async def bot_start(message: types.Message, state: FSMContext):
             your_code = randint(1, 257892246898)
             admin = Users(id=message.from_user.id,
                           name=message.from_user.full_name,
-                          balance=0.00,
+                          balance=0,
                           code=your_code,
                           invited=None)
             async with session.begin():

@@ -29,7 +29,7 @@ class Items(Base):
 
     id = sa.Column(sa.BigInteger, sa.Identity(minvalue=1), primary_key=True)
     name = sa.Column(sa.VARCHAR(255), nullable=False)
-    price = sa.Column(sa.Float, nullable=False)
+    price = sa.Column(sa.Integer, nullable=False)
     description = sa.Column(sa.VARCHAR(1024))
     thumb_url = sa.Column(sa.Text)
     create_date = sa.Column(sa.DateTime, server_default=sa.func.now())

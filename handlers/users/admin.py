@@ -36,7 +36,7 @@ async def add_items(call: types.CallbackQuery):
                                  'Ввести надо <b>Название товара, цена (обязательно с точкой), описание (не обязательно), ссылку на фото</b> через строчку\n\n'
                                  'Пример:\n'
                                  'Ананас\n'
-                                 '1.50\n'
+                                 '60\n'
                                  'Самый вкусный\n'
                                  'https://images.av.ru/av.ru/product/h53/h1b/8953463635998.jpg',
                                  disable_web_page_preview=True,
@@ -183,7 +183,7 @@ async def change_item_(message: types.Message, state: FSMContext):
             return
     elif data['act'] == 'price':
         try:
-            float(message.text)
+            int(message.text)
         except ValueError:
             await message.answer('Стоимоть товара должна быть в цифрах!')
             return

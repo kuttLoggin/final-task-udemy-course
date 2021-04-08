@@ -13,7 +13,7 @@ def buy_button(item_id: int):
                     callback_data=buy_item.new(id=item_id)
                 )
             ]
-        ]
+        ], cache_time=60
     )
 
 def show_item_button(item, username):
@@ -22,7 +22,7 @@ def show_item_button(item, username):
             [
                 types.InlineKeyboardButton(
                     text='Показать товар',
-                    url=f't.me/{username}?start=item_id-{str(item.id)}'
+                    url=f't.me/{username}?start=item_id-{str(item.item_id)}'
                 )
             ]
         ]

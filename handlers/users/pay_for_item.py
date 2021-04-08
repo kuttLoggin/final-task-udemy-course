@@ -14,12 +14,13 @@ from utils.db_api.db import async_session
 from utils.db_api.models import Items, Users
 from utils.misc.qiwi import create_bill, check_bill
 from states.buy import BuyItem
+from utils.misc import db_commands as db
 
 @dp.message_handler(CommandStart(deep_link=re.compile('^item_id-\d+$')), AuthUserM())
 async def show_item(message: types.Message):
     item_id = int(message.get_args().split('-')[1])
     async with async_session() as session:
-        results = await session.execute(select(Items).where(Items.id == item_id))
+        results = await session.execute(select(Items).where(Items.item_id == item_id))
         item = results.scalars().first()
 
     if item is None:
@@ -94,15 +95,18 @@ async def address_delivery(message: types.Message, state: FSMContext):
 
 async def send_msg_admins(item, data, call):
     for admin in ADMINS:
-        await dp.bot.send_message(chat_id=admin, text=f'{hide_link(item.thumb_url)}'
-                                                      f'<b><i>Новая покупка!</i></b>\n'
-                                                      f'<b>От</b> {call.from_user.get_mention()}\n'
-                                                      f'<b>Адрес:</b> \n{data["address"]}\n'
-                                                      f'<b>Товар №{item.id}</b>: {item.name}\n'
-                                                      f'<b>Цена:</b> {item.price * data["quantity"]}₽\n'
-                                                      f'<b>Количество:</b> {data["quantity"]}\n'
-                                                      f'<b>Описание:</b> \n{item.description}\n\n'
-                                                      f'<i>Дата выставления товара: {item.create_date}</i>')
+        try:
+            await dp.bot.send_message(chat_id=admin, text=f'{hide_link(item.thumb_url)}'
+                                                          f'<b><i>Новая покупка!</i></b>\n'
+                                                          f'<b>От</b> {call.from_user.get_mention()}\n'
+                                                          f'<b>Адрес:</b> \n{data["address"]}\n'
+                                                          f'<b>Товар №{item.item_id}</b>: {item.name}\n'
+                                                          f'<b>Цена:</b> {item.price * data["quantity"]}₽\n'
+                                                          f'<b>Количество:</b> {data["quantity"]}\n'
+                                                          f'<b>Описание:</b> \n{item.description}\n\n'
+                                                          f'<i>Дата выставления товара: {item.create_date}</i>')
+        except:
+            pass
 
 
 @dp.callback_query_handler(buy_item.filter(), state=BuyItem.wait_payment)
@@ -110,33 +114,37 @@ async def create_invoice(call: types.CallbackQuery, state: FSMContext, callback_
     item_id = int(callback_data.get('id'))
     data = await state.get_data()
 
-    async with async_session() as session:
-        results = await session.execute(select(Items).where(Items.id == item_id))
-        item = results.scalars().first()
+    item = await db.select_item(item_id)
+    user = await db.select_user(call.from_user.id)
 
-        results_ = await session.execute(select(Users).where(Users.id == call.from_user.id))
-        user = results_.scalars().first()
+    # async with async_session() as session:
+    #     results = await session.execute(select(Items).where(Items.item_id == item_id))
+    #     item = results.scalars().first()
+    #
+    #     results_ = await session.execute(select(Users).where(Users.user_id == call.from_user.id))
+    #     user = results_.scalars().first()
 
-        if item is None:
-            await call.message.answer('Такого товара нету.', reply_markup=None)
-            await state.finish()
-            return
+    if not item:
+        await call.message.answer('Такого товара нету.', reply_markup=None)
+        await state.finish()
+        return
 
-        if user.balance >= item.price * data['quantity']:
-            stmt = update(Users).where(Users.id == call.from_user.id).values(balance=user.balance - item.price*data["quantity"]). \
-                returning(Users.balance)
-            await session.execute(stmt)
-            await session.commit()
+    if user.balance >= item.price * int(data['quantity']):
+            # stmt = update(Users).where(Users.user_id == call.from_user.id).values(balance=user.balance - item.price*data["quantity"]). \
+            #     returning(Users.balance)
+            # await session.execute(stmt)
+            # await session.commit()
+        await db.update_user({'balance': 'user.balance - item.price*data["quantity"]'}, call)
 
-            await call.message.edit_reply_markup()
-            await state.finish()
-            await call.message.answer(f'Вы оплатили товар своим балансом, теперь ваш баланс: {user.balance}', reply_markup=types.ReplyKeyboardRemove())
-            await send_msg_admins(item, data, call)
-            return
+        await call.message.edit_reply_markup()
+        await state.finish()
+        await call.message.answer(f'Вы оплатили товар своим балансом, теперь ваш баланс: {user.balance}', reply_markup=types.ReplyKeyboardRemove())
+        await send_msg_admins(item, data, call)
+        return
 
     await call.message.edit_text('Генерирую ссылку для оплаты...', reply_markup=None)
 
-    bill = await create_bill(amount=item.price*data['quantity']-user.balance)
+    bill = await create_bill(amount=item.price*int(data['quantity'])-user.balance)
 
     await call.message.edit_text(f'Купить товар можно через <b>Qiwi</b>\n'
                                  f'Оплатить тут: <a href="{bill.pay_url}">*Клик*</a>\n'
@@ -154,5 +162,6 @@ async def create_invoice(call: types.CallbackQuery, state: FSMContext, callback_
             break
     else:
         await call.message.answer('Товар не был оплачен.')
+        return
     await call.message.answer(f'{hide_link(item.thumb_url)}'
                               f'Скоро товар "{item.name}" будет доставлен на адрес доставки.')

@@ -32,12 +32,12 @@ async def empty_query(query: types.InlineQuery, state: FSMContext):
     for item in result:
         items_list.append(
             types.InlineQueryResultArticle(
-                id=item.id,
+                id=item.item_id,
                 title=item.name,
                 description='%s₽\n%s' % (item.price, item.description),
                 thumb_url=item.thumb_url,
                 input_message_content=types.InputTextMessageContent(
-                    message_text=f'%s{await id_item(state, query, item.id)}'
+                    message_text=f'%s{await id_item(state, query, item.item_id)}'
                                  f'<b>Товар:</b> %s\n'
                                  f'<b>Цена:</b> %s₽\n'
                                  f'<b>Описание:</b>\n%s\n\n'
@@ -66,12 +66,12 @@ async def items_query(query: types.InlineQuery, state: FSMContext):
     for item in result:
         list_items.append(
             types.InlineQueryResultArticle(
-                id=item.id,
+                id=item.item_id,
                 title=item.name,
                 description='%s₽\n%s' % (item.price, item.description),
                 thumb_url=item.thumb_url,
                 input_message_content=types.InputTextMessageContent(
-                    message_text=f'%s{await id_item(state, query, item.id)}'
+                    message_text=f'%s{await id_item(state, query, item.item_id)}'
                                  f'<b>Товар:</b> %s\n'
                                  f'<b>Цена:</b> %s₽\n'
                                  f'<b>Описание:</b>\n%s\n\n'

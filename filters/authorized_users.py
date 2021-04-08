@@ -15,7 +15,7 @@ class AuthUserQ(BoundFilter):
         user = query.from_user.id
 
         async with async_session() as session:
-            result = await session.execute(select(Users).where(Users.id == user))
+            result = await session.execute(select(Users).where(Users.user_id == user))
             result = result.scalars().first()
 
         if result is None:
@@ -34,7 +34,7 @@ class AuthUserM(BoundFilter):
         user = message.from_user.id
 
         async with async_session() as session:
-            result = await session.execute(select(Users).where(Users.id == user))
+            result = await session.execute(select(Users).where(Users.user_id == user))
             result = result.scalars().first()
 
         if result is None:

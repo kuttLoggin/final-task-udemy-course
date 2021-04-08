@@ -21,8 +21,8 @@ async def on_startup(dispatcher):
         # Создаем таблицы если их нету
         await conn.run_sync(Base.metadata.create_all)
 
-    logger.info('Уведомляем Администрацию')
-    await on_startup_notify(dispatcher)
+    # logger.info('Уведомляем Администрацию')
+    # await on_startup_notify(dispatcher)
     logger.info('Бот запущен')
 
 

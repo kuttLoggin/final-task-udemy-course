@@ -1,9 +1,7 @@
 import uuid
-from dataclasses import dataclass
 import datetime
 
 from glQiwiApi import QiwiWrapper
-
 from data.config import QIWI_TOKEN, WALLET_QIWI, QIWI_PUBKEY, QIWI_SECRET
 
 wallet = QiwiWrapper(api_access_token=QIWI_TOKEN, phone_number=WALLET_QIWI, public_p2p=QIWI_PUBKEY, secret_p2p=QIWI_SECRET)
@@ -21,10 +19,4 @@ async def create_bill(amount):
 
 
 async def check_bill(bill):
-    if (await wallet.check_p2p_bill_status(bill_id=bill.bill_id)) == 'PAID':
-        return True
-    else:
-        return False
-
-
-
+    return await wallet.check_p2p_bill_status(bill_id=bill.bill_id) == 'PAID'

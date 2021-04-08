@@ -2,6 +2,7 @@ from loguru import logger
 
 from loader import dp
 from aiogram import types
+from sqlalchemy import func
 from sqlalchemy import update
 from sqlalchemy.future import select
 from utils.db_api.models import Users, Items
@@ -110,7 +111,7 @@ def to_(self):
 
 async def update_item(data):
     old = data['old']
-    for item in ['item_name', 'description', 'price', 'pic']:
+    for item in ['name', 'description', 'price', 'pic']:
         item_ = data[item]
         if item_ is None:
             continue

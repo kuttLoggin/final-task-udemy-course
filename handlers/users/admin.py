@@ -4,9 +4,6 @@ from aiogram.dispatcher.filters import Text, Command
 from aiogram.utils.markdown import hide_link
 import re
 
-from sqlalchemy import update
-from sqlalchemy.future import select
-
 from filters.admin import AdmM, AdmC
 from keyboards.default.admin_menu import admin_menu
 from keyboards.inline.admin_act import admin_items_act, items_act, button_cancel, button_confirm_add, change_item, \
@@ -14,20 +11,19 @@ from keyboards.inline.admin_act import admin_items_act, items_act, button_cancel
 from states.admin import ItemsAct
 from loader import dp
 
-from utils.db_api.db import async_session
 from utils.db_api.models import Items
 from utils.misc import db_commands as db
 
 def to_(self):
-    d = {'item_name': self.name,
+    d = {'name': self.name,
          'description': self.description,
          'price': self.price,
          'pic': self.thumb_url}
     return d
 
 async def get_info_fsm(data):
-    info = ['item_name', 'description', 'price', 'pic']
-    act = {'item_name': '<b>Название</b>', 'description': '<b>Описание</b>',
+    info = ['name', 'description', 'price', 'pic']
+    act = {'name': '<b>Название</b>', 'description': '<b>Описание</b>',
            'price': '<b>Стоимостью</b>', 'pic': '<b>Ссылку для фото</b>'}
     old_and_now = ''
 
@@ -39,12 +35,12 @@ async def get_info_fsm(data):
 
 @dp.message_handler(AdmM(), Command('admin', '/!', ignore_case=True))
 async def show_menu(message: types.Message):
-    await message.answer('Открываю вам меню', reply_markup=admin_menu)
+    await message.answer(f'Открываю вам меню\n', reply_markup=admin_menu)
 
 
 @dp.message_handler(AdmM(), Text(contains='Управление товарами', ignore_case=True))
 async def control_items(message: types.Message):
-    await message.answer('Управление товарами', reply_markup=admin_items_act)
+    await message.answer(f'Управление товарами', reply_markup=admin_items_act)
 
 
 @dp.callback_query_handler(AdmC(), items_act.filter(act='add'))
@@ -64,17 +60,17 @@ async def add_items(call: types.CallbackQuery):
 @dp.message_handler(AdmM(), state=ItemsAct.add_wait_text)
 async def add_item(message: types.Message, state: FSMContext):
     try:
-        item_name, price, description, pic = message.text.split('\n')
+        name, price, description, pic = message.text.split('\n')
     except ValueError:
         await message.answer('Текст заполнен не правильно')
     else:
         await message.answer('%s'
                              '<b>Товар:</b> %s\n'
-                             '<b>Цена:</b> %s$\n'
+                             '<b>Цена:</b> %s₽\n'
                              '<b>Описание:</b>\n%s\n\n'
                              '<i>Дата выставления товара: сейчас</i>' % \
-                             (hide_link(pic), item_name, price, description))
-        await state.update_data(item_name=item_name, price=price, description=description, pic=pic)
+                             (hide_link(pic), name, price, description))
+        await state.update_data(name=name, price=price, description=description, pic=pic)
         await message.answer('Вы уверены что хотите добавить этот товар?', reply_markup=button_confirm_add)
 
 
@@ -82,7 +78,7 @@ async def add_item(message: types.Message, state: FSMContext):
 async def confirm_add(call: types.CallbackQuery, state: FSMContext):
     data = await state.get_data()
     try:
-        item = Items(name=data['item_name'], price=int(data['price']), description=data['description'], thumb_url=data['pic'])
+        item = Items(name=data['name'], price=int(data['price']), description=data['description'], thumb_url=data['pic'])
         await db.add_item(item)
     except:
         await call.message.edit_text(f'Что-то пошло не так и товар не был добавлен!', reply_markup=None)
@@ -100,7 +96,7 @@ async def change_items(call: types.CallbackQuery):
 @dp.message_handler(AdmM(), state=ItemsAct.change_wait_item)
 async def wait_msg(message: types.Message, state: FSMContext):
     data = await state.get_data()
-    for q in ['item_name', 'description', 'price', 'pic']:
+    for q in ['name', 'description', 'price', 'pic']:
         if q in data:
             await message.answer(f'{await get_info_fsm(data)}Что вы хотите изменить у этого товара?',
                                  reply_markup=change_item_v1, disable_web_page_preview=True)
@@ -110,7 +106,7 @@ async def wait_msg(message: types.Message, state: FSMContext):
         await message.answer('Пришлите сообщение через инлайн мод этого бота.')
         return
 
-    item_id = re.compile('id=(\d)+')
+    item_id = re.compile('id=(\d+)')
     try:
         item_id = item_id.match(message.text, pos=1).group(1)
         item_id = int(item_id)
@@ -125,7 +121,7 @@ async def wait_msg(message: types.Message, state: FSMContext):
         return
 
     await message.answer('Что вы хотите изменить у этого товара?', reply_markup=change_item)
-    await state.update_data(item_id=item_id, old=item, item_name=None, description=None, price=None, pic=None)
+    await state.update_data(item_id=item_id, old=item, name=None, description=None, price=None, pic=None)
 
 
 @dp.callback_query_handler(AdmC(), item_change.filter(act='save'), state=ItemsAct.change_wait_item)
@@ -141,7 +137,7 @@ async def save(call: types.CallbackQuery, state: FSMContext):
 @dp.callback_query_handler(AdmC(), item_change.filter(), state=ItemsAct.change_wait_item)
 async def item_change_all(call: types.CallbackQuery, state: FSMContext, callback_data: dict):
     act = callback_data.get('act')
-    acts = {'item_name': 'е <b>Название</b>', 'description': 'е <b>Описание</b>', 'price': 'ю <b>Стоимость</b>',
+    acts = {'name': 'е <b>Название</b>', 'description': 'е <b>Описание</b>', 'price': 'ю <b>Стоимость</b>',
             'pic': 'ю <b>Фото</b>'}
     await call.message.edit_text(f'Отправьте ново{acts[act]}', reply_markup=None)
     await state.update_data(act=act)
@@ -151,7 +147,7 @@ async def item_change_all(call: types.CallbackQuery, state: FSMContext, callback
 @dp.message_handler(AdmM(), state=ItemsAct.change_wait_input)
 async def change_item_(message: types.Message, state: FSMContext):
     data = await state.get_data()
-    if data['act'] == 'item_name':
+    if data['act'] == 'name':
         if len(message.text) > 255:
             await message.answer('Такое название товара слишком длинное, надо меньше')
             return

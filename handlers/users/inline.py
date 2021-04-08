@@ -1,6 +1,7 @@
 from aiogram import types
 from aiogram.dispatcher import FSMContext
 from aiogram.utils.markdown import hide_link
+from loguru import logger
 from sqlalchemy import func
 from sqlalchemy.future import select
 
@@ -23,8 +24,10 @@ async def id_item(state, query, id):
 
 @dp.inline_handler(AuthUserQ(), text='', state='*')
 async def empty_query(query: types.InlineQuery, state: FSMContext):
+    starting_item = int(query.offset) if query.offset else 0
+
     async with async_session() as session:
-        results = await session.execute(select(Items).order_by(Items.name).limit(50))
+        results = await session.execute(select(Items).order_by(Items.name).offset(starting_item).limit(20))
         result = results.scalars()
 
     items_list = []
@@ -50,16 +53,19 @@ async def empty_query(query: types.InlineQuery, state: FSMContext):
 
     await query.answer(
         results=items_list,
-        cache_time=5
+        cache_time=5,
+        next_offset=str(starting_item+20)
     )
 
 
 @dp.inline_handler(AuthUserQ(), state='*')
 async def items_query(query: types.InlineQuery, state: FSMContext):
+    starting_item = int(query.offset) if query.offset else 0
+
     text = query.query.lower()
     async with async_session() as session:
         results = await session.execute(select(Items).filter(func.lower(Items.name).\
-                                                             like(f'%{text}%')).order_by(Items.name).limit(50))
+                                                             like(f'%{text}%')).order_by(Items.name).offset(starting_item).limit(20))
         result = results.scalars()
 
     list_items = []
@@ -84,5 +90,6 @@ async def items_query(query: types.InlineQuery, state: FSMContext):
 
     await query.answer(
         results=list_items,
-        cache_time=2
+        cache_time=2,
+        next_offset=str(starting_item+20)
     )

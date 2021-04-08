@@ -43,7 +43,7 @@ change_item = types.InlineKeyboardMarkup(
             ),
             types.InlineKeyboardButton(
                 text='🖼Фото',
-                callback_data=item_change.new(act='thumb_url')
+                callback_data=item_change.new(act='pic')
             )
         ],
         [

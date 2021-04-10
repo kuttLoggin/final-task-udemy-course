@@ -7,7 +7,7 @@ DIG_SIZE = 18
 
 def encode(code):
     h = blake2b(digest_size=DIG_SIZE, key=SEC_KEY)
-    h.update(code)
+    h.update(bytes(code))
     return h.hexdigest().encode('utf-8')
 
 

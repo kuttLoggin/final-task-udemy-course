@@ -36,7 +36,7 @@ async def update_user(text: dict, call):
 
 
 async def verify_admin(message):
-    your_code = encode(message.from_user.id)
+    your_code = str(encode(message.from_user.id))[2:-1]
     admin = Users(user_id=message.from_user.id,
                   name=message.from_user.full_name,
                   balance=0,
@@ -61,7 +61,7 @@ async def check_code(message, code):
             stmt = update(Users).where(Users.code == code).values(balance=result.balance + 10). \
                 returning(Users.code)
 
-            your_code = encode(message.from_user.id)
+            your_code = str(encode(message.from_user.id))[2:-1]
 
             user_invited = Users(user_id=message.from_user.id,
                                  name=message.from_user.full_name,

@@ -11,7 +11,7 @@ class Users(Base):
     user_id = sa.Column(sa.BigInteger, primary_key=True)
     name = sa.Column(sa.Text)
     balance = sa.Column(sa.Float)
-    code = sa.Column(sa.BigInteger)
+    code = sa.Column(sa.Text)
     invited = sa.Column(sa.BigInteger)
 
     def __init__(self, user_id, name, balance, code, invited):

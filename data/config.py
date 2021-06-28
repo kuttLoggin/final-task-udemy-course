@@ -14,7 +14,6 @@ BASE = str(env.str("BASE"))  # Берём название базы для вх�
 
 QIWI_TOKEN = str(env.str("qiwi"))  # Киви токен
 WALLET_QIWI = str(env.str("wallet"))  # Номер киви
-QIWI_PUBKEY = str(env.str("qiwi_p_pub"))  # Публичный ключ
 QIWI_SECRET = str(env.str("qiwi_p_sec"))  # Приватный ключ
 
 

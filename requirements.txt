@@ -2,7 +2,6 @@ aiogram~=2.12
 aiohttp~=3.7
 environs~=9.3
 sqlalchemy~=1.4
-loguru
+loguru~=0.5
 asyncpg~=0.22
-glQiwiApi
-python-dotenv
+glQiwiApi~=1.0

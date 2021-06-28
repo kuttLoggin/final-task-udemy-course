@@ -1,16 +1,13 @@
 from loguru import logger
 from aiogram import executor
-import asyncpg
 
 # Бот:
-from sqlalchemy import select
-
 from loader import dp
 import middlewares, filters, handlers
 
 # Бд:
-from utils.db_api.db import engine, async_session
-from utils.db_api.models import Base, Users
+from utils.db_api.db import engine
+from utils.db_api.models import Base
 
 # Прочие:
 from utils.notify_admins import on_startup_notify
@@ -22,7 +19,7 @@ async def on_startup(dispatcher):
         await conn.run_sync(Base.metadata.create_all)
 
     # logger.info('Уведомляем Администрацию')
-    # await on_startup_notify(dispatcher)
+    await on_startup_notify(dispatcher)
     logger.info('Бот запущен')
 
 

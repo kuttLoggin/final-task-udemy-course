@@ -14,7 +14,7 @@ class Users(Base):
     code = sa.Column(sa.Text)
     invited = sa.Column(sa.BigInteger)
 
-    def __init__(self, user_id, name, balance, code, invited):
+    def __init__(self, user_id, name, balance, code, invited=None):
         self.user_id = user_id
         self.name = name
         self.balance = balance
@@ -29,12 +29,12 @@ class Items(Base):
 
     item_id = sa.Column(sa.BigInteger, sa.Identity(minvalue=1), primary_key=True)
     name = sa.Column(sa.VARCHAR(255), nullable=False)
-    price = sa.Column(sa.Integer, nullable=False)
+    price: int = sa.Column(sa.Integer, nullable=False)
     description = sa.Column(sa.VARCHAR(1024))
     thumb_url = sa.Column(sa.Text)
     create_date = sa.Column(sa.DateTime, server_default=sa.func.now())
 
-    def __init__(self, name, price, description, thumb_url):
+    def __init__(self, name: str, price: int, description: str, thumb_url: str):
         self.name = name
         self.price = price
         self.description = description

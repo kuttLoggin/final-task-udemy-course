@@ -1,42 +1,37 @@
 import re
-from asyncio import sleep
+import asyncio
 from aiogram import types
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters import CommandStart
 from aiogram.utils.markdown import hide_link
-from sqlalchemy import update
-from sqlalchemy.future import select
-from data.config import ADMINS
-from keyboards.inline.buy import buy_button, buy_item
-from filters.authorized_users import AuthUserM
-from loader import dp
-from utils.db_api.db import async_session
-from utils.db_api.models import Items, Users
+from keyboards.inline.buy import buy_button, buy_item, req_location
+from filters.authorized_users import AuthUser
 from utils.misc.qiwi import create_bill, check_bill
 from states.buy import BuyItem
-from utils.misc import db_commands as db
+from loguru import logger
+import utils.db_api.commands as db
 
-@dp.message_handler(CommandStart(deep_link=re.compile('^item_id-\d+$')), AuthUserM())
-async def show_item(message: types.Message):
-    item_id = int(message.get_args().split('-')[1])
-    async with async_session() as session:
-        results = await session.execute(select(Items).where(Items.item_id == item_id))
-        item = results.scalars().first()
+from data.config import ADMINS
+from loader import dp
+
+@dp.message_handler(CommandStart(deep_link=re.compile('^item_id-\d+$')), AuthUser())
+async def show_item(message: types.Message, deep_link):
+    item_id = int(deep_link[0].split('-')[1])
+
+    item = await db.get_item(item_id)
 
     if item is None:
-        await message.answer('Такого товара нету.')
+        await message.answer('Товар который вы заращиваете не существует.')
         return
 
-    await message.answer('%s'
-                         '<b>Товар:</b> %s\n'
-                         '<b>Цена:</b> %s₽\n'
-                         '<b>Описание:</b>\n%s\n\n'
-                         '<i>Дата выставления товара: %s</i>' % \
-                         (hide_link(item.thumb_url), item.name, item.price,
-                          item.description, item.create_date.strftime('%d-%m-%Y %H:%M')),
+    await message.answer(f'{hide_link(item.thumb_url)}'
+                         f'<b>Товар:</b> {item.name}\n'
+                         f'<b>Цена:</b> {item.price}₽\n'
+                         f'<b>Описание:</b>\n{item.description}\n\n'
+                         f'<i>Дата выставления товара: '
+                         f'{item.create_date.strftime("%d-%m-%Y %H:%M")}</i>',
                          reply_markup=buy_button(item_id)
                          )
-    print(item_id)
 
 
 @dp.callback_query_handler(buy_item.filter())
@@ -44,7 +39,7 @@ async def buy_item_(call: types.CallbackQuery, callback_data: dict, state: FSMCo
     await call.answer(cache_time=60)
     await state.update_data(id=callback_data.get('id'))
     await call.message.answer('Введите количество товара.\n'
-                              'Только число.')
+                              'Например: 3')
     await BuyItem.wait_quantity_item.set()
 
 
@@ -56,20 +51,10 @@ async def quantity_item(message: types.Message, state: FSMContext):
         await message.answer('Введите количество товара в цифрах.')
         return
 
-    await state.update_data(quantity=message.text)
-    await message.answer('Хорошо, теперь введите адрес (город, дом, подъезд, квартиру) доставки или отправьте мне свою геолокацию',
-                         reply_markup=types.ReplyKeyboardMarkup(
-                             keyboard=[
-                                 [
-                                     types.KeyboardButton(
-                                         text='Отправить геолокацию',
-                                         request_location=True
-                                     )
-                                 ]
-                             ],
-                             one_time_keyboard=True,
-                             resize_keyboard=True
-                         ))
+    await message.answer('Хорошо, теперь введите адрес доставки (город, улицу, дом, подъезд, квартиру) '
+                         'или отправьте мне свою геолокацию нажав на кнопку ниже.',
+                         reply_markup=req_location)
+    await state.update_data(quantity=int(message.text))
     await BuyItem.wait_address.set()
 
 
@@ -79,89 +64,88 @@ async def address_delivery(message: types.Message, state: FSMContext):
     if 'address' in data:
         await state.update_data(address=f"{data['address']}\n"
                                         f"Подробнее: {message.text}")
-    if message.location:
+    elif message.location:
         await state.update_data(address=f"<b>Широта:</b> {message.location.latitude} \n"
                                         f"<b>Долгота:</b> {message.location.longitude}\n"
-                                        f"<a href='https://www.google.com/maps/@{message.location.latitude},{message.location.longitude}'>Гугл карты</a>")
-        await message.answer('Так же введите подъед и квартиру', reply_markup=types.ReplyKeyboardRemove())
+                                        f"<a href='https://www.google.com/maps/@{message.location.latitude},"
+                                        f"{message.location.longitude}'>Гугл карты</a>")
+        await message.answer('Так же введите номер подъезда и номер квартиры.', reply_markup=types.ReplyKeyboardRemove())
         return
     else:
         await state.update_data(address=message.text)
-    item_id = int((await state.get_data())['id'])
-    await message.answer('Хорошо, записал.', reply_markup=types.ReplyKeyboardRemove())
-    await message.answer('Осталось оплатить товар', reply_markup=buy_button(item_id))
+
+    item_id = int(data['id'])
+    await message.answer('Записал адрес доставки товара.', reply_markup=types.ReplyKeyboardRemove())
+
+    await message.answer('Осталось оплатить товар.', reply_markup=buy_button(item_id))
     await BuyItem.wait_payment.set()
 
 
-async def send_msg_admins(item, data, call):
+async def send_msg_admins(item, data: dict, user_mention: str):
+    text = (f'{hide_link(item.thumb_url)}'
+            f'<b><i>Новая покупка!</i></b>',
+            f'<b>От</b> {user_mention}',
+            f'<b>Адрес:</b> \n{data["address"]}',
+            f'<b>Товар №{item.item_id}</b>: {item.name}',
+            f'<b>Цена:</b> {item.price * data["quantity"]}₽',
+            f'<b>Количество:</b> {data["quantity"]}',
+            f'<b>Описание:</b> \n{item.description}',
+            f'',
+            f'<i>Дата выставления товара: {item.create_date}</i>')
     for admin in ADMINS:
         try:
-            await dp.bot.send_message(chat_id=admin, text=f'{hide_link(item.thumb_url)}'
-                                                          f'<b><i>Новая покупка!</i></b>\n'
-                                                          f'<b>От</b> {call.from_user.get_mention()}\n'
-                                                          f'<b>Адрес:</b> \n{data["address"]}\n'
-                                                          f'<b>Товар №{item.item_id}</b>: {item.name}\n'
-                                                          f'<b>Цена:</b> {item.price * data["quantity"]}₽\n'
-                                                          f'<b>Количество:</b> {data["quantity"]}\n'
-                                                          f'<b>Описание:</b> \n{item.description}\n\n'
-                                                          f'<i>Дата выставления товара: {item.create_date}</i>')
-        except:
-            pass
+            await dp.bot.send_message(chat_id=admin, text='\n'.join(text))
+            await asyncio.sleep(1/10)
+        except Exception as err:
+            logger.info(err)
 
 
 @dp.callback_query_handler(buy_item.filter(), state=BuyItem.wait_payment)
 async def create_invoice(call: types.CallbackQuery, state: FSMContext, callback_data: dict):
     item_id = int(callback_data.get('id'))
     data = await state.get_data()
+    await state.finish()
 
-    item = await db.select_item(item_id)
-    user = await db.select_user(call.from_user.id)
-
-    # async with async_session() as session:
-    #     results = await session.execute(select(Items).where(Items.item_id == item_id))
-    #     item = results.scalars().first()
-    #
-    #     results_ = await session.execute(select(Users).where(Users.user_id == call.from_user.id))
-    #     user = results_.scalars().first()
+    item = await db.get_item(item_id)
+    user = await db.get_user(call.from_user.id)
 
     if not item:
         await call.message.answer('Такого товара нету.', reply_markup=None)
-        await state.finish()
         return
 
-    if user.balance >= item.price * int(data['quantity']):
-            # stmt = update(Users).where(Users.user_id == call.from_user.id).values(balance=user.balance - item.price*data["quantity"]). \
-            #     returning(Users.balance)
-            # await session.execute(stmt)
-            # await session.commit()
-        await db.update_user({'balance': 'user.balance - item.price*data["quantity"]'}, call)
+    if user.balance >= item.price * data['quantity']:
+        await db.update_user({'balance': user.balance - item.price * data["quantity"]}, call.from_user.id)
 
         await call.message.edit_reply_markup()
-        await state.finish()
-        await call.message.answer(f'Вы оплатили товар своим балансом, теперь ваш баланс: {user.balance}', reply_markup=types.ReplyKeyboardRemove())
-        await send_msg_admins(item, data, call)
+        await call.message.answer(f'Вы оплатили товар своим балансом, теперь ваш баланс: {user.balance - item.price * data["quantity"]}',
+                                  reply_markup=types.ReplyKeyboardRemove())
+        await send_msg_admins(item, data, call.from_user.get_mention())
         return
 
     await call.message.edit_text('Генерирую ссылку для оплаты...', reply_markup=None)
 
     bill = await create_bill(amount=item.price*int(data['quantity'])-user.balance)
+    await db.update_user({'balance': 0.0}, call.from_user.id)
 
-    await call.message.edit_text(f'Купить товар можно через <b>Qiwi</b>\n'
+    await call.message.edit_text(f'Оплатить товар можно через <b>Qiwi</b>.\n'
                                  f'Оплатить тут: <a href="{bill.pay_url}">*Клик*</a>\n'
                                  f'<b>У вас есть 15 минут что-бы оплатить товар</b>')
-    await state.finish()
 
-    for i in range(180):
-        result = await check_bill(bill=bill)
-        if result is False:
-            await sleep(5)
+    for i in range(179):
+        bill_states = await check_bill(bill=bill)
+        if bill_states == 'WAITING':
+            await asyncio.sleep(5)
             continue
-        else:
-            await call.message.edit_text('Вижу что вы оплатили товар.')
-            await send_msg_admins(item, data, call)
-            break
-    else:
-        await call.message.answer('Товар не был оплачен.')
+        elif bill_states in ('EXPIRED', 'REJECTED'):
+            await db.update_user({'balance': user.balance}, call.from_user.id)
+            await call.message.reply(f'Товар не был оплачен или Счёт был отклонён.\n'
+                                     f'Деньги за товар были возвращены, ваш баланс: {user.balance}')
+            return
+        elif bill_states == 'PAID':
+            await call.message.edit_text('Товар "item.name" был оплачен.\n')
+            await send_msg_admins(item, data, call.from_user.get_mention())
+
+            await call.message.answer(f'{hide_link(item.thumb_url)}'
+                                      f'Скоро товар "{item.name}" будет доставлен на ваш адрес доставки.')
         return
-    await call.message.answer(f'{hide_link(item.thumb_url)}'
-                              f'Скоро товар "{item.name}" будет доставлен на адрес доставки.')
+    await call.message.reply('Товар не был оплачен.')

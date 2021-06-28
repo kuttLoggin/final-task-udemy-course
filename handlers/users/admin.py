@@ -4,7 +4,7 @@ from aiogram.dispatcher.filters import Text, Command
 from aiogram.utils.markdown import hide_link
 import re
 
-from filters.admin import AdmM, AdmC
+from filters.admin import Admin
 from keyboards.default.admin_menu import admin_menu
 from keyboards.inline.admin_act import admin_items_act, items_act, button_cancel, button_confirm_add, change_item, \
     item_change, change_item_v1, button_confirm_del
@@ -12,7 +12,7 @@ from states.admin import ItemsAct
 from loader import dp
 
 from utils.db_api.models import Items
-from utils.misc import db_commands as db
+import utils.db_api.commands as db
 
 def to_(self):
     d = {'name': self.name,
@@ -33,17 +33,17 @@ async def get_info_fsm(data):
     return old_and_now
 
 
-@dp.message_handler(AdmM(), Command('admin', '/!', ignore_case=True))
+@dp.message_handler(Admin(), Command('admin', '/!', ignore_case=True))
 async def show_menu(message: types.Message):
     await message.answer(f'Открываю вам меню\n', reply_markup=admin_menu)
 
 
-@dp.message_handler(AdmM(), Text(contains='Управление товарами', ignore_case=True))
+@dp.message_handler(Admin(), Text(contains='Управление товарами', ignore_case=True))
 async def control_items(message: types.Message):
     await message.answer(f'Управление товарами', reply_markup=admin_items_act)
 
 
-@dp.callback_query_handler(AdmC(), items_act.filter(act='add'))
+@dp.callback_query_handler(Admin(), items_act.filter(act='add'))
 async def add_items(call: types.CallbackQuery):
     await call.message.edit_text('Введите данные о товаре что бы внести его в список\n'
                                  'Ввести надо <b>Название товара, цена (обязательно с точкой), описание (не обязательно), ссылку на фото</b> через строчку\n\n'
@@ -57,7 +57,7 @@ async def add_items(call: types.CallbackQuery):
     await ItemsAct.add_wait_text.set()
 
 
-@dp.message_handler(AdmM(), state=ItemsAct.add_wait_text)
+@dp.message_handler(Admin(), state=ItemsAct.add_wait_text)
 async def add_item(message: types.Message, state: FSMContext):
     try:
         name, price, description, pic = message.text.split('\n')
@@ -74,7 +74,7 @@ async def add_item(message: types.Message, state: FSMContext):
         await message.answer('Вы уверены что хотите добавить этот товар?', reply_markup=button_confirm_add)
 
 
-@dp.callback_query_handler(AdmC(), text='confirm_add', state=ItemsAct.add_wait_text)
+@dp.callback_query_handler(Admin(), text='confirm_add', state=ItemsAct.add_wait_text)
 async def confirm_add(call: types.CallbackQuery, state: FSMContext):
     data = await state.get_data()
     try:
@@ -87,13 +87,13 @@ async def confirm_add(call: types.CallbackQuery, state: FSMContext):
     await state.finish()
 
 
-@dp.callback_query_handler(AdmC(), items_act.filter(act='change'))
+@dp.callback_query_handler(Admin(), items_act.filter(act='change'))
 async def change_items(call: types.CallbackQuery):
     await call.message.edit_text('Пришлите мне через инлайн мод товар который вы хотите изменить', reply_markup=button_cancel)
     await ItemsAct.change_wait_item.set()
 
 
-@dp.message_handler(AdmM(), state=ItemsAct.change_wait_item)
+@dp.message_handler(Admin(), state=ItemsAct.change_wait_item)
 async def wait_msg(message: types.Message, state: FSMContext):
     data = await state.get_data()
     for q in ['name', 'description', 'price', 'pic']:
@@ -114,7 +114,7 @@ async def wait_msg(message: types.Message, state: FSMContext):
         await message.answer('Что-то пошло не так, попробуйте ещё раз.')
         return
 
-    item = await db.select_item(item_id)
+    item = await db.get_item(item_id)
 
     if not item:
         await message.answer('Товар не найден! :/')
@@ -124,7 +124,7 @@ async def wait_msg(message: types.Message, state: FSMContext):
     await state.update_data(item_id=item_id, old=item, name=None, description=None, price=None, pic=None)
 
 
-@dp.callback_query_handler(AdmC(), item_change.filter(act='save'), state=ItemsAct.change_wait_item)
+@dp.callback_query_handler(Admin(), item_change.filter(act='save'), state=ItemsAct.change_wait_item)
 async def save(call: types.CallbackQuery, state: FSMContext):
     data = await state.get_data()
 
@@ -134,7 +134,7 @@ async def save(call: types.CallbackQuery, state: FSMContext):
     await state.finish()
 
 
-@dp.callback_query_handler(AdmC(), item_change.filter(), state=ItemsAct.change_wait_item)
+@dp.callback_query_handler(Admin(), item_change.filter(), state=ItemsAct.change_wait_item)
 async def item_change_all(call: types.CallbackQuery, state: FSMContext, callback_data: dict):
     act = callback_data.get('act')
     acts = {'name': 'е <b>Название</b>', 'description': 'е <b>Описание</b>', 'price': 'ю <b>Стоимость</b>',
@@ -144,7 +144,7 @@ async def item_change_all(call: types.CallbackQuery, state: FSMContext, callback
     await ItemsAct.change_wait_input.set()
 
 
-@dp.message_handler(AdmM(), state=ItemsAct.change_wait_input)
+@dp.message_handler(Admin(), state=ItemsAct.change_wait_input)
 async def change_item_(message: types.Message, state: FSMContext):
     data = await state.get_data()
     if data['act'] == 'name':
@@ -173,14 +173,14 @@ async def change_item_(message: types.Message, state: FSMContext):
     await wait_msg(message, state)
 
 
-@dp.callback_query_handler(AdmC(), items_act.filter(act='del'))
+@dp.callback_query_handler(Admin(), items_act.filter(act='del'))
 async def del_item(call: types.CallbackQuery):
     await call.message.edit_text('Пришлите мне через инлайн мод товар который вы хотите удалить',
                                  reply_markup=button_cancel)
     await ItemsAct.del_wait_item.set()
 
 
-@dp.message_handler(AdmM(), state=ItemsAct.del_wait_item)
+@dp.message_handler(Admin(), state=ItemsAct.del_wait_item)
 async def wait_del_item(message: types.Message, state: FSMContext):
     if message.via_bot.id != (await dp.bot.me).id:
         await message.answer('Пришлите сообщение через инлайн мод этого бота.')
@@ -197,7 +197,7 @@ async def wait_del_item(message: types.Message, state: FSMContext):
     await message.answer('Вы уверены что хотите <b>удалить этот товар</b>?', reply_markup=button_confirm_del)
 
 
-@dp.callback_query_handler(AdmC(), text='confirm_del', state=ItemsAct.del_wait_item)
+@dp.callback_query_handler(Admin(), text='confirm_del', state=ItemsAct.del_wait_item)
 async def delete_item(call: types.CallbackQuery, state: FSMContext):
     data = await state.get_data()
 
@@ -209,14 +209,14 @@ async def delete_item(call: types.CallbackQuery, state: FSMContext):
     await state.finish()
 
 
-@dp.callback_query_handler(AdmC(), text='cancel', state='*')
+@dp.callback_query_handler(Admin(), text='cancel', state='*')
 async def cancel_callback(call: types.CallbackQuery, state: FSMContext):
     await call.answer()
     await call.message.edit_text('Вы отменили', reply_markup=None)
     await state.finish()
 
 
-@dp.message_handler(AdmM(), Command('cancel', '/!', ignore_case=True), state='*')
+@dp.message_handler(Admin(), Command('cancel', '/!', ignore_case=True), state='*')
 async def cancel_message(message: types.Message, state: FSMContext):
     await message.edit_text('Вы отменили', reply_markup=None)
     await state.finish()

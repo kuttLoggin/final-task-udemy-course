@@ -6,9 +6,9 @@ DIG_SIZE = 18
 
 
 def encode(code):
-    h = blake2b(digest_size=DIG_SIZE, key=SEC_KEY)
-    h.update(str(code).encode('utf-8'))
-    return h.hexdigest().encode('utf-8')
+    he = blake2b(digest_size=DIG_SIZE, key=SEC_KEY)
+    he.update(str(code).encode('utf-8'))
+    return he.hexdigest().encode('utf-8')
 
 
 def verify(code, sig):

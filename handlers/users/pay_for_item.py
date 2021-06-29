@@ -14,7 +14,7 @@ import utils.db_api.commands as db
 from data.config import ADMINS
 from loader import dp
 
-@dp.message_handler(CommandStart(deep_link=re.compile('^item_id-\d+$')), AuthUser())
+@dp.message_handler(CommandStart(deep_link=re.compile(r'^item_id-\d+$')), AuthUser())
 async def show_item(message: types.Message, deep_link):
     item_id = int(deep_link[0].split('-')[1])
 
@@ -65,11 +65,12 @@ async def address_delivery(message: types.Message, state: FSMContext):
         await state.update_data(address=f"{data['address']}\n"
                                         f"Подробнее: {message.text}")
     elif message.location:
-        await state.update_data(address=f"<b>Широта:</b> {message.location.latitude} \n"
+        await state.update_data(address=f"<b>Широта:</b> {message.location.latitude}\n"
                                         f"<b>Долгота:</b> {message.location.longitude}\n"
                                         f"<a href='https://www.google.com/maps/@{message.location.latitude},"
                                         f"{message.location.longitude}'>Гугл карты</a>")
-        await message.answer('Так же введите номер подъезда и номер квартиры.', reply_markup=types.ReplyKeyboardRemove())
+        await message.answer('Так же введите номер подъезда и номер квартиры.',
+                             reply_markup=types.ReplyKeyboardRemove())
         return
     else:
         await state.update_data(address=message.text)
@@ -89,8 +90,7 @@ async def send_msg_admins(item, data: dict, user_mention: str):
             f'<b>Товар №{item.item_id}</b>: {item.name}',
             f'<b>Цена:</b> {item.price * data["quantity"]}₽',
             f'<b>Количество:</b> {data["quantity"]}',
-            f'<b>Описание:</b> \n{item.description}',
-            f'',
+            f'<b>Описание:</b> \n{item.description}\n',
             f'<i>Дата выставления товара: {item.create_date}</i>')
     for admin in ADMINS:
         try:
@@ -114,18 +114,20 @@ async def create_invoice(call: types.CallbackQuery, state: FSMContext, callback_
         return
 
     if user.balance >= item.price * data['quantity']:
-        await db.update_user({'balance': user.balance - item.price * data["quantity"]}, call.from_user.id)
+        new_balance = user.balance - item.price * data["quantity"]
+        await db.update_user({'balance': new_balance}, call.from_user.id)
 
         await call.message.edit_reply_markup()
-        await call.message.answer(f'Вы оплатили товар своим балансом, теперь ваш баланс: {user.balance - item.price * data["quantity"]}',
+        await call.message.answer(f'Вы оплатили товар своим балансом, теперь ваш баланс: {new_balance}',
                                   reply_markup=types.ReplyKeyboardRemove())
         await send_msg_admins(item, data, call.from_user.get_mention())
         return
 
     await call.message.edit_text('Генерирую ссылку для оплаты...', reply_markup=None)
 
-    bill = await create_bill(amount=item.price*int(data['quantity'])-user.balance)
-    await db.update_user({'balance': 0.0}, call.from_user.id)
+    bill = await create_bill(amount=item.price*data['quantity']-user.balance)
+    if user.balance > 0.0:
+        await db.update_user({'balance': 0.0}, call.from_user.id)
 
     await call.message.edit_text(f'Оплатить товар можно через <b>Qiwi</b>.\n'
                                  f'Оплатить тут: <a href="{bill.pay_url}">*Клик*</a>\n'
@@ -140,12 +142,13 @@ async def create_invoice(call: types.CallbackQuery, state: FSMContext, callback_
             await db.update_user({'balance': user.balance}, call.from_user.id)
             await call.message.reply(f'Товар не был оплачен или Счёт был отклонён.\n'
                                      f'Деньги за товар были возвращены, ваш баланс: {user.balance}')
-            return
         elif bill_states == 'PAID':
-            await call.message.edit_text('Товар "item.name" был оплачен.\n')
+            await call.message.edit_text(f'Товар "{item.name}" был оплачен.')
             await send_msg_admins(item, data, call.from_user.get_mention())
 
             await call.message.answer(f'{hide_link(item.thumb_url)}'
                                       f'Скоро товар "{item.name}" будет доставлен на ваш адрес доставки.')
+        else:
+            await call.message.reply(f'Товар не был оплачен или произошла какая ошибка.\n'
+                                     f'{bill_states:=}')
         return
-    await call.message.reply('Товар не был оплачен.')
